@@ -6,6 +6,8 @@ import { CreateChatRoomService } from "../services/CreateChatRoomService";
 import { GetUserBySocketIdService } from "../services/GetUserBySocketIdService";
 import { GetChatRoomByUserService } from "../services/GetChatRoomByUserService";
 import { GetMessagesByChatRoomService } from "../services/GetMessagesByChatRoomService";
+import { CreateMessageService } from "../services/CreateMessageService";
+import { GetChatRoomByIdService } from "../services/GetChatRoomByIdService";
 
 interface ChatStart {
   email: string;
@@ -68,5 +70,38 @@ io.on("connect", (socket) => {
     );
 
     callback({ room, messages });
+  });
+
+  socket.on("message", async (data) => {
+    const getUserBySocketIdService = container.resolve(
+      GetUserBySocketIdService
+    );
+    const createMessageService = container.resolve(CreateMessageService);
+    const getChatRoomByIdService = container.resolve(GetChatRoomByIdService);
+
+    const user = await getUserBySocketIdService.execute(socket.id);
+
+    const message = await createMessageService.execute({
+      to: user?._id,
+      text: data.message,
+      roomId: data.idChatRoom,
+    });
+
+    io.to(data.idChatRoom).emit("message", {
+      message,
+      user,
+    });
+
+    const room = await getChatRoomByIdService.execute(data.idChatRoom);
+
+    const userFrom = room?.idUsers.find(
+      (response) => String(response._id) !== String(user?._id)
+    );
+
+    io.to(userFrom?.socket_id as string).emit("notification", {
+      newMessage: true,
+      roomId: data.idChatRoom,
+      from: user,
+    });
   });
 });

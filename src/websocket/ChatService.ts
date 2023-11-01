@@ -73,6 +73,7 @@ io.on("connect", (socket) => {
   });
 
   socket.on("message", async (data) => {
+    // buscar as informações do usuário (socket.id)
     const getUserBySocketIdService = container.resolve(
       GetUserBySocketIdService
     );
@@ -81,17 +82,20 @@ io.on("connect", (socket) => {
 
     const user = await getUserBySocketIdService.execute(socket.id);
 
+    // salvar a mensagem
     const message = await createMessageService.execute({
       to: user?._id,
       text: data.message,
       roomId: data.idChatRoom,
     });
 
+    // enviar a mensagem pra outros usuários da sala
     io.to(data.idChatRoom).emit("message", {
       message,
       user,
     });
 
+    // enviar notificação pro usuário correto
     const room = await getChatRoomByIdService.execute(data.idChatRoom);
 
     const userFrom = room?.idUsers.find(
